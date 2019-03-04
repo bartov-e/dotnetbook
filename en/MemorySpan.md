@@ -524,7 +524,7 @@ public Span<byte> GetSpan()
 
 a compiler will prohibit it. Before I say why, I would like you to guess which problems this construct brings.
 
-Well, I hope you thought, guessed and maybe even understood the reason. If yes, my efforts to writing a detailed chapter about a [thread stack] (./ThreadStack.md) paid off. Because when you pass a reference to local variables to a method that finished its work, you can call another method, wait until it finishes its work too, and then read values of those local variables using x[0.99].
+Well, I hope you thought, guessed and maybe even understood the reason. If yes, my efforts to writing a detailed chapter about a [thread stack] (./ThreadStack.md) paid off. Because when you return a reference to local variables from a method that finishes its work, you can call another method, wait until it finishes its work too, and then read values of those local variables using x[0.99].
 
 Fortunately, when we attempt to write such code a compiler slaps on our wrists by warning: `CS8352 Cannot use local 'reff' in this context because it may expose referenced variables outside of their declaration scope`. The compiler is right because if you bypass this error, there will be a chance, while in a plug-in, to steal the passwords of others or to elevate  privileges for running our plug-in.
 
