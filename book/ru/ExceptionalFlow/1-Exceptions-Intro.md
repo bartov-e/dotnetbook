@@ -1,12 +1,12 @@
-﻿# Исключения
+# Exceptions
 
-> [Ссылка на обсуждение](https://github.com/sidristij/dotnetbook/issues/51)
+> [A link to the discussion](https://github.com/sidristij/dotnetbook/issues/51)
 
-В нашем разговоре о потоке исполнения команд различными подсистемами пришло время поговорить про исключения или, скорее, исключительные ситуации. И прежде чем продолжить стоит совсем немного остановиться именно на самом определении. Что такое исключительная ситуация?
+It’s time to talk about exceptions or, rather, exceptional situations. They are important in the context of how different subsystems execute threads. Before we start, let’s look at the definition. What is an exceptional situation?
 
-Исключительной называют такую ситуацию, которая делает исполнение дальнейшего или текущего кода абсолютно не корректным. Не таким как задумывалось, проектировалось. Переводит состояние приложения в целом или же его отдельной части (например, объекта) в состояние нарушенной целостности. Т.е. что-то экстраординарное, исключительное.
+This is a situation that makes the execution of current or subsequent code incorrect. I mean different from how it was designed or intended. Such a situation compromises the integrity of an application or its part, e.g. an object. It brings the application into an extraordinary or exceptional state.
 
-Почему же это так важно - определить терминологию? Работа с терминологией очень важна, т.к. она держит нас в рамках. Если не следовать терминологии можно уйти далеко от созданного проектировщиками концепта и получить множество неоднозначных ситуаций. А чтобы закрепить понимание вопроса давайте обратимся к примерам:
+But why do we need to define this terminology? Because it will keep us in some boundaries. If we don’t follow the terminology, we can get too far from a designed concept which may result in many ambiguous situations. Let’s see some practical examples:
 
 ```csharp
  struct Number
@@ -29,35 +29,35 @@
  }
 ```
 
-Этот пример кажется немного странным: и это не просто так. Для того чтобы показать исключительность проблем, возникающих в данном коде я сделал его несколько утрированным. Для начала посмотрим на метод `Parse`. Почему он должен выбрасывать исключение?
+This example seems a little strange, and it is for a reason. I made this code slightly artificial to show the importance of problems appearing in it. First, let’s look at the `Parse` method. Why should it throw an exception?
 
-  - Он принимает в качестве параметра строку, а в качестве результата - некоторое число, которое является значимым типом. По этому числу мы никак не можем определить, является ли оно результатом корректных вычислений или же нет: оно просто есть. Другими словами, в интерфейсе метода отсутствует возможность сообщить о проблеме;
-  - С другой стороны метод, принимая строку подразумевает что её для него корректно подготовили: там нет лишних символов и строка содержит некоторое число. Если это не так, то возникает проблема предусловий к методу: тот код, который вызвал наш метод отдал не корректные данные.
+  – Because the parameter it accepts is a string, but its output is a number, which is a value type. This number can’t indicate the correctness of calculations: it just exists. In other words, the method has no means in its interface to communicate a potential problem.
+  – On the other hand, the method expects to get a correct string that contains some number and no redundant characters. Otherwise, there is a problem in prerequisites to the method: the code that calls our method gives it the wrong data.
 
-Получается, что для данного метода ситуация получения строки с не корректными данными является исключительной: метод не может вернуть корректного значения, но и вернуть абы что он не может. А потому единственный выход - бросить исключение.
+Thus, the situation when this method gets a string with incorrect data is exceptional because the method can’t return a correct value but it can’t return just anything as well. Thus, the only way is to throw an exception.
 
-Второй вариант метода обладает каналом сигнализации о наличии проблем с входными данными: возвращаемое значение тут `boolean` и является признаком успешности выполнения метода. Сигнализировать о каких-либо проблемах при помощи механизма исключений данный метод не имеет ни малейшего повода: все виды проблем легко уместятся в возвращаемое значение `false`.
+The second variant of the method can signal some problems with input data: the return value here is `boolean` which indicates successful execution of the method. This method doesn’t need to use exceptions to signal any problems: they are all covered by the `false` return value.
 
-## Общая картина
+## Overview
 
-Обработка исключительных ситуаций может показаться вопросом достаточно элементарным: ведь все что нам необходимо сделать - это установить `try-catch` блоки и ждать соответствующего события. Однако вопрос кажется элементарным только благодаря огромной работе, проделанной командами CLR и CoreCLR чтобы унифицировать все ошибки, которые лезут в CLR со всех щелей - из самых разных источников. Чтобы иметь представление, о чем мы будем далее вести беседу, давайте взглянем на диаграмму:
+Exceptions handling might look as easy as ABC: we just need to place `try-catch` blocks and wait for corresponding events. However, this simplicity became possible due to the tremendous work of CLR and CoreCLR teams that unified all the errors that come from all directions and sources into the CLR. To understand what we are going to talk about next, let’s look at a diagram:
 
 ![](./imgs/CommonScheme.png)
 
-На этой схеме мы видим, что в большом .NET Framework существует по сути два мира: все, что относится к CLR и все, что находится за ней: все возможные ошибки, возникающие в Windows и прочем unsafe мире:
+We can see that inside big .NET Framework there are two worlds: everything that belongs to CLR and everything that doesn’t, including all possible errors appearing in Windows and other parts of the unsafe world.
 
-  - Structured Exception Handling (SEH) - структурированная обработка исключений - стандарт платформы Windows для обработки исключений. Во время вызовов unsafe методов и последующем выбросе исключений происходит конвертация исключений unsafe <-> CLR в обе стороны: из unsafe в CLR и обратно, т.к. CLR может вызвать unsafe метод, а тот в свою очередь - CLR метод.
-  - Vectored Exception Handling (VEH) - по своей сути является корнем SEH, позволяя вставлять свои обработчики в точку выброса исключения. Используется в частности для установки `FirstChanceException`.
-  - COM+ исключения - когда источником проблемы является некоторый COM компонент, то прослойка между COM и .NET методом должна сконвертировать COM ошибку в исключение .NET
-  - И, наконец, обёртки для HRESULT. Введены для конвертации модели WinAPI (код ошибки - в возвращаемом значении, а возвращаемые значения - через параметры метода) в модель исключений: для .NET стардартом является именно исключительная ситуация
+  – Structured Exception Handling (SEH) is a standard way Windows handles exceptions. When unsafe methods are called and exceptions are thrown, there is the unsafe <-> CLR conversion of exceptions in both directions: from unsafe to CLR and backward. This is because CLR can call an unsafe method that can call a CLR method in turn.
+  – Vectored Exception Handling (VEH) is a root of SEH and allows you to use your handlers in places where exceptions might be thrown. In particular, it used for placing `FirstChanceException`.
+  – COM+ exceptions appear when the source of a problem is a COM component. In this case, a layer between COM and a .NET method must convert a COM error into a .NET exception.
+  – And, of course, wrappers for HRESULT. They are introduced to convert a WinAPI model (an error code is contained in a return value, while return values are obtained using method parameters) into a model of exceptions because it is an exception that is standard for .NET.
 
-С другой стороны, поверх CLI располагаются языки программирования, каждый из которых частично или же полностью - предлагает функционал по обработке исключений конечному пользователю языка. Так, например, языки VB.NET и F# до недавнего времени обладали более богатым функционалом по части обработки исключительных ситуаций, предлагая функционал фильтров, которых не существовало в языке C#.
+On the other hand, there are languages above CLI each of which more or less have functions for handling exceptions. For example, recently VB.NET or F# had richer exception handling functionality expressed in a number of filters that didn’t exist in C#.
 
-## Коды возврата vs. исключение
+## Return codes vs. exception
 
-Стоит отдельно отметить модель работы с ошибками в приложении через коды возврата. Эта идея - просто вернуть ошибку - очень проста и понятна. Мало того, если отталкиваться от отношения к исключениям как к оператору `goto`, то коды возврата становятся намного более корректной реализацией: ведь в этом случае пользователь метода видит и возможность самой ошибки, а также может сразу понять, какие ошибки возможны. Но давайте не будет гадать на кофейной гуще, что лучше и для чего, а лучше обсудим проблематику выбора академически.
+Separately, I should mention a model of handling application errors using return codes. The idea of simply returning an error is plain and clear. Moreover, if we treat exceptions as a `goto` operator, the use of return codes becomes more reasonable: in this case, the user of a method sees the possibility of errors and can understand which errors may occur. However, let’s not guess what is better and for what, but discuss the problem of choice using well-reasoned theory.
 
-Представим, что все методы обладают интерфейсом для получения ошибки. Тогда все наши методы выглядели бы как-то так:
+Let’s suppose that all methods have interfaces to deal with errors. Then all methods would look like:
 
 ```csharp
 public bool TryParseInteger(string source, out int result);
@@ -69,7 +69,7 @@ public class DialogBoxResult : ResultBase { ... }
 public class WebServiceResult : ResultBase { ... }
 ```
 
-А их использование выглядело бы как-то так:
+And their use would look like:
 
 ```csharp
 
@@ -94,29 +94,29 @@ public ShowClientsResult ShowClients(string group)
 }
 ```
 
-Возможно, вам покажется, что этот код перегружен обработкой ошибок. Однако я попрошу вас не согласиться с такой позицией: все, что здесь происходит - это эмуляция работы механизма выброса и обработки исключений.
+You may think this code is overloaded with error handling. However, I would like you to reconsider your position: everything here is an emulation of a mechanism that throws and handles exceptions.
 
-Как любой метод может сообщить о возникшей проблеме? Посредством некоторого интерфейса сообщения об ошибки. Например, в методе `TryParseInteger` интерфейсом является возвращаемое значение: если все хорошо, метод вернёт `true`. Если все плохо, вернёт `false`. Однако данный способ обладает и минусом: реальное значение возвращается через `out int result` параметр. Минус подхода с одной стороны состоит в том, что возвращаемое значение чисто логически и по восприятию является более "возвращаемым значением" чем `out` параметр. А с другой - сам факт ошибки нам не всегда интересен. Ведь если строка для парсинга пришла из сервиса, который сгенерировал эту строку, значит проверять на ошибки парсинг нет необходимости: там всегда будет лежать правильная, пригодная для разбора строка. С другой стороны, если взять другую реализацию метода:
+How can a method report a problem? It can do it by using an interface for reporting errors. For example, in `TryParseInteger` method such interface is represented by a return value: if everything is OK, the method will return `true`. If it’s not OK, it will return `false`. However, there is a disadvantage here: the real value is returned via `out int result` parameter. The disadvantage is that on the one hand the return value is logically and by perception has more "return value” essence than `out` parameter. On the other hand, we don’t always care about errors. Indeed, if a string intended for parsing comes from a service that generated this string, we don’t need to check it for errors: the string will always be correct and good for parsing. However, suppose we take another implementation of the method:
 
 ```csharp
 public int ParseInt(string source);
 ```
 
-То возникает резонный вопрос: если парсинг всё-таки будет содержать ошибку по неизвестной нам причине, что делать методу тогда? Вернуть ноль? Будет не корректно: нуля в строке не было. Тогда становится ясно что мы имеем конфликт интересов: первый вариант многословен, а второй - не содержит канала сигнализации об ошибках. Однако, можно легко прийти к выводу, когда надо работать с кодами возвратов, а когда - с исключениями:
+Then, there is a question: if a string does have errors, what should the method do? Should it return zero? This won’t be correct: there is no zero in the string. In this case, we have a conflict of interests: the first variant has too much code, while the second variant has no means to report errors. However, it’s actually easy to decide when to use return codes and when to use exceptions.
 
-> Код возврата необходимо внедрять тогда, кода факт ошибки является нормой поведения. Например, в алгоритме парсинга текста ошибки в тексте являются нормой поведения, тогда как в алгоритме работы с разобранной строкой получение от парсера ошибки может являться критичным или, другими словами, чем-то исключительным.
+> If getting an error is a norm, choose a return code. For example, it is normal when a text parsing algorithm encounters errors in a text, but if another algorithm that works with a parsed string gets an error from a parser, it can be critical or, in other words, exceptional.
 
-## Блоки Try-Catch-Finally коротко
+## Try-Catch-Finally in brief
 
-Блок `try` создаёт секцию, от которой программист ожидает возникновения критических ситуаций, которые с точки зрения внешнего кода являются нормой поведения. Т.е. другими словами, если мы работаем с некоторым кодом, который в рамках своих правил считает внутреннее состояние более не консистентным и в связи с этим выбрасывает исключение, то внешняя система, которая обладает более широким видением той же ситуации возникшее исключение может перехватить блоком `catch` тем самым нормализовав исполнение кода приложения. А потому, *перехватом исключений вы легализуете их наличие на данном участке кода*. Это, на мой взгляд, очень важная мысль, которая обосновывает запрет на перехват всех типов исключений `try-catch(Exception ex){ ... }` *на всякий случай*.
+A `try` block covers a section where a programmer expects to get a critical situation which is treated as a norm by external code. In other words, if some code considers its internal state inconsistent based on some rules and throws an exception, an external system, which has a broader view of the same situation, can catch this exception using a `catch` block and normalize the execution of application code. Thus, *you legalize exceptions in this section of code by catching them*. I think it is an important idea that justifies the ban on catching all `try-catch(Exception ex){ ...}` exceptions *just in case*.
 
-Это вовсе не означает, что перехватывать исключения идеологически плохо: я всего лишь хочу сказать о необходимости перехватывать то и только то, что вы ожидаете от конкретного участка кода и ничего больше. Например, вы не можете ожидать все типы исключений, которые наследуется от `ArgumentException` или же получение `NullReferenceException` поскольку это означает что проблема чаще всего не в вызываемом коде, а *в вашем*. Зато вполне корректно ожидать, что желаемый файл открыть вы не сможете. Даже если на 200% уверены, что сможете, не забудьте сделать проверку.
+It doesn’t mean that catching exceptions contradicts some ideology. I say that you should catch only the errors that you expect from a particular section of code. For example, you can’t expect all types of exceptions inherited from `ArgumentException` or you can’t get `NullReferenceException`, because often it means that a problem is rather in *your* code than in a called one. But it’s appropriate to expect that you won’t be able to open an intended file. Even if you 200% sure you will be able, don’t forget to check.
 
-Третий блок - `finally` - также не должен нуждаться в представлении. Этот блок срабатывает для всех случаев работы блоков `try-catch`. Кроме некоторых достаточно редких _особых_ ситуаций, этот блок отрабатывает *всегда*. Для чего введена такая гарантия исполнения? Для зачистки тех ресурсов и тех групп объектов, которые были выделены или же захвачены в блоке `try` и при этом являются зоной его ответственности.
+The `finally` block is also well known. It is suitable for all cases covered by `try-catch` blocks. Except for several rare _special_ situations, this block will *always* work. Why is there such a guarantee of performance? To clean up those resources and groups of objects which were allocated or captured in `try` block and which this block has responsibility for.
 
-Этот блок очень часто используется без блока `catch`, когда нам не важно, какая ошибка уронила алгоритм, но важно очистить все выделенные для этого конкретно алгоритма ресурсы. Простой пример: для алгоритма копирования файла необходимо: два открытых файла и участок памяти под кэш-буфер копирования. Память мы выделить смогли, один файл открыть смогли, а вот со вторым возникли какие-то проблемы. Чтобы запечатать все в одну "транзакцию", мы помещаем все три операции в единый `try` блок (как вариант реализации), с очисткой ресурсов - в `finally`. Пример может показаться упрощённым, но тут главное - показать суть.
+This block is often used without `catch` block when we don’t care which error broke an algorithm, but we need to clean up all resources allocated for this algorithm. Let’s look at a simple example: a file copying algorithm needs two open files and a memory range for a cash buffer. Imagine that we allocated memory and opened one file, but couldn’t open another one. To cover everything in one "transaction” we put all three operations in a single `try` block (as a variant of implementation) with resources cleaned in `finally`. It may seem like a simplified example but the most important is to show the essence.
 
-Чего не хватает в языке программирования C#, так это блока `fault`, суть которого - срабатывать всегда, когда произошла любая ошибка. Т.е. тот же `finally`, только на стероидах. Если бы такое было, мы бы смогли, как классический пример делать единую точку входа в логирование исключительных ситуаций:
+What C# actually lacks is a `fault` block which is activated whenever an error occurs. It’s like `finally` on steroids. If we had this, we could, for example, create a single point for entering exceptional situations logging:
 
 ```csharp
 try {
@@ -128,7 +128,7 @@ try {
 
 ```
 
-Также, о чем хотелось бы упомянуть во вводной части - это фильтры исключительных ситуаций. Для платформы .NET это новшеством не является, однако является таковым для разработчиков на языке программирования C#: фильтрация исключительных ситуаций появилась у нас только в шестой версии языка. Фильтры призваны нормализовать ситуацию, когда есть единый тип исключения, который объединяет в себе несколько видов ошибок. И в то время как мы хотим отрабатывать на конкретный сценарий, вынуждены перехватывать всю группу и фильтровать её - уже после перехвата. Я, конечно же, имею в виду код следующего вида:
+Another thing I should touch in this introduction is exception filters. It is not a new feature on the .NET platform but C# developers may be new to it: exception filtering appeared only in the sixth version of the language. Filters should normalize a situation when there is a single type of exception that combines several types of errors. It should help us when we want to deal with a particular scenario but have to catch the whole group of errors first and filter them later. Of course, I mean the code of the following type:
 
 ```csharp
 try {
@@ -150,7 +150,7 @@ catch (ParserException exception)
 }
 ```
 
-Так вот теперь мы можем переписать этот код нормально:
+Well, we can now rewrite this code properly:
 
 ```csharp
 try {
@@ -166,13 +166,13 @@ catch (ParserException exception) when (exception.ErrorCode == ErrorCode.Missing
 }
 ```
 
-И вопрос улучшения тут вовсе не в отсутствии конструкции `switch`. Новая конструкция как по мне лучше по нескольким пунктам:
+The improvement here is not in the lack of `switch` construct. I believe this new construct is better in several things:
 
-  - фильтруя по when мы перехватываем ровно то что хотим поймать и не более того. Это правильно идеологически;
-  - в новом виде код стал более читаем. Просматривая взглядом, мозг более легко находит определения ошибок, т.к. изначально он их ищет не в `switch-case`, а в `catch`;
-  - и менее явное, но также очень важное: предварительное сравнение идёт ДО входа в catch блок. А это значит, что работа такой конструкции для случая промаха мимо всех условий будет идти намного быстрее чем `switch` с перевыбросом исключения.
+  – using when for filtering we catch exactly what we want and it’s right in terms of ideology;
+  – the code became more readable in the new form. Looking through code our brain can identify blocks for handling errors more easily as it searches for `catch` and not `switch-case` from the beginning;
+  – the last but not least: a preliminary comparison is BEFORE entering the catch block. It means that if we make wrong guesses about potential situations, this construct will work faster than `switch` in the case of throwing an exception again.
 
-Особенностью исполнения кода по уверениям многих источников является то, что код фильтрации происходит *до* того как произойдёт развёртка стека. Это можно наблюдать в ситуациях, когда между местом выброса исключения и местом проверки на фильтрацию нет никаких других вызовов кроме обычных:
+Many sources say that the peculiar feature of this code is that filtering happens *before* stack unrolling. You can see this in situations when there are no other calls except usual between the place where an exception is thrown and the place where filtering check occurs.
 
 ```csharp
 static void Main()
@@ -205,11 +205,11 @@ static bool Check(Exception ex)
 
 ![Stack without unrolling](./imgs/StackWOutUnrolling.png)
 
-Как видно на изображении трассировка стека содержит не только первый вызов `Main` как место отлова исключительной ситуации, но и весь стек до точки выброса исключения плюс повторный вход в `Main` через некоторый неуправляемый код. Можно предположить, что этот код и есть код выброса исключений, который просто находится в стадии фильтрации и выбора конечного обработчика. Однако стоит отметить что _не все вызовы позволяют работать без раскрутки стека_. На мой скромный взгляд, внешняя унифицированность платформы порождает излишнее к ней доверие. Например, вызов методов между доменами с точки зрения кода выглядит абсолютно прозрачно. Тем не менее, работа вызовов методов происходит совсем по другим законам. О них мы и поговорим в следующей части.
+You can see from the image that the stack trace contains not only the first call of `Main` as the point to catch an exception, but the whole stack before the point of throwing an exception plus the second entering into `Main` via unmanaged code. We can suppose that this code is exactly the code for throwing exceptions that is in the stage of filtering and choosing a final handler. However, _not all calls can be handled without stack unrolling_. I believe that excessive uniformity of the platform generates too much confidence in it. For example, when one domain calls a method from another domain it is absolutely transparent in terms of code. However, the way methods calls work is an absolutely different story. We are going to talk about them in the next part.
 
-### Сериализация
+### Serialization
 
-Давайте начнём несколько издалека и посмотрим на результаты работы следующего кода (я добавил проброс вызова через границу между доменами приложения):
+Let’s start by looking at the results of running the following code (I added the transfer of a call across the boundary between two application domains).
 
 ```csharp
     class Program
@@ -253,15 +253,15 @@ static bool Check(Exception ex)
 
 ```
 
-Если обратить внимание на размотку стека, то станет ясно, что в данном случае она происходит ещё до того, как мы попадаем в фильтр. Взглянем на скриншоты. Первый взят до того, как генерируется исключение:
+We can see that stack unrolling happens before we get to filtering. Let’s look at screenshots. The first is taken before the generation of an exception:
 
 ![StackUnroll](./imgs/StackUnroll.png)
 
-А второй - после:
+The second one is after it:
 
 ![StackUnroll2](./imgs/StackUnroll2.png)
 
-Изучим трассировку вызовов до и после попадания в фильтр исключений. Что же здесь происходит? Здесь мы видим, что разработчики платформы сделали некоторую с первого взгляда защиту дочернего домена. Трассировка обрезана по крайний метод в цепочке вызовов, после которого идёт переход в другой домен. Но на самом деле, как по мне так это выглядит несколько странно. Чтобы понять, почему так происходит, вспомним основное правило для типов, организующих взаимодействие между доменами. Эти типы должны наследовать `MarshalByRefObject` плюс - быть сериализуемыми. Однако, как бы ни был строг C#, типы исключений могут быть какими угодно. А что это значит? Это значит, что могут быть ситуации, когда исключительная ситуация внутри дочернего домена может привести к её перехвату в родительском домене. И если у объекта данных исключительной ситуации есть какие-либо опасные методы с точки зрения безопасности, они могут быть вызваны в родительском домене. Чтобы такого избежать, исключение сериализуется, проходит через границу доменов приложений и возникает вновь - с новым стеком. Давайте проверим эту стройную теорию:
+Let’s study call tracing before and after exceptions are filtered. What happens here? We can see that platform developers made something that looks like the protection of a subdomain from the first glance. The tracing is cut after the last method in the call chain and then there is the transfer to another domain. But I think this looks strange. To understand why this happens let’s remember the main rule for types that organize the interaction between domains. These types should inherit `MarshalByRefObject` and be serializable. However, despite the strictness of C# exception types can be of any nature. What does it mean? This means that situations may occur when an exception inside a subdomain can be caught in a parent domain. Also, if a data object that can get into an exceptional situation has some methods that are dangerous in terms of security they can be called in a parent domain. To avoid this, the exception is first serialized and then it crosses the boundary between application domains and appears again with a new stack. Let’s check this theory:
 
 ```csharp
 [StructLayout(LayoutKind.Explicit)]
@@ -313,13 +313,13 @@ public class ProxyRunner : MarshalByRefObject
 }
 ```
 
-В данном примере, для того чтобы выбросить исключение любого типа из C# кода (я не хочу никого мучить вставками на MSIL) был проделан трюк с приведением типа к не сопоставимому: чтобы мы бросили исключение любого типа, а транслятор C# думал бы, что мы используем тип `Exception`. Мы создаём экземпляр типа `Program` - гарантированно не сериализуемого и бросаем исключение с ним в виде полезной нагрузки. Хорошие новости заключаются в том, что вы получите обёртку над не-Exception исключениями `RuntimeWrappedException`, который внутри себя сохранит экземпляр нашего объекта типа `Program` и в C# перехватить такое исключение мы сможем. Однако есть и плохая новость, которая подтверждает наше предположение: вызов `proxy.MethodInsideAppDomain();` приведёт к исключению `SerializationException`:
+For C# code could throw an exception of any type (I don’t want to torture you with MSIL) I performed a trick in this example casting a type to a noncomparable one, so we could throw an exception of any type, but the translator would think that we use `Exception` type. We create an instance of the `Program` type, which is not serializable for sure, and throw an exception using this type as workload. The good news is that you get a wrapper for non-Exception exceptions of `RuntimeWrappedException` which will store an instance of our `Program` type object inside and we won’t be able to catch this exception. However, there is bad news that supports our idea: calling `proxy.MethodInsideAppDomain();` will generate `SerializationException`:
 
 ![](./imgs/SerializationError.png)
 
-Т.е. проброс между доменами такого исключения не возможен, т.к. его нет возможности сериализовать. А это в свою очередь значит, что оборачивание вызовов методов, находящихся в других доменах фильтрами исключений все равно приведёт к развёртке стека несмотря на то что при `FullTrust` настройках дочернего домена сериализация казалось бы не нужна.
+Thus, you can’t transfer such an exception between domains as it is not possible to serialize it. This, in turn, means that using exception filters for wrapping methods calls in other domains will anyway lead to stack unrolling despite that the serialization seems to be unnecessary with `FullTrust` settings of a subdomain.
 
-> Стоит дополнительно обратить внимание на причину, по которой сериализация между доменами так необходима. В нашем синтетическом примере мы создаём дочерний домен, который не имеет никаких настроек. А это значит, что он работает в FullTrust. Т.е. CLR полностью доверяет его содержимому как себе и никаких дополнительных проверок делать не будет. Но как только вы выставите хоть одну настройку безопасности, полная доверенность пропадёт и CLR начнёт контролировать все что происходит внутри этого дочернего домена. Так вот когда домен полностью доверенный, сериализация по идее не нужна. Нам нет необходимости как-то защищаться, согласитесь. Но сериализация создана не только для защиты. Каждый домен грузит в себя все необходимые сборки по второму разу, создавая их копии. Тем самым создавая копии всех типов и всех таблиц виртуальных методов. Передавая объект по ссылке из домена в домен, вы получите, конечно, тот же объект. Но у него будут чужие таблицы виртуальных методов и как результат - этот объект не сможет быть приведён к другому типу. Другими словами, если вы создали экземпляр типа `Boo`, то получив его в другом домене приведение типа `(Boo)boo` не сработает. А сериализация и десериализация решает проблему: объект будет существовать одновременно в двух доменах. Там где он был создан - со всеми своими данными и в доменах использования - в виде прокси-объекта, обеспечивающего вызов методов оригинального объекта.
+> We should pay additional attention to the reason why serialization between domains is so necessary. In our artificial example, we create a subdomain which doesn’t have any settings. It means it works in FullTrust way. CLR fully trusts its content and doesn’t run any additional checks. However, when you insert at least one security setting, the full trust will disappear and CLR will start controlling everything that happens inside a subdomain. So, when you have a fully trusted domain you don’t need a serialization. Agree, we don’t need to protect ourselves. But serialization exists not only for protection. Each domain loads all necessary assemblies a second time and creates their copies. Thus, it creates copies of all types and all VMTs. Of course, when passing an object from domain to domain you will get the same object. But its VMTs won’t be its own and this object can’t be cast to another type. In other words, if we create an instance of a `Boo` type and get it in another domain the casting of `(Boo)boo` won’t work. In this case, serialization and deserialization will solve the problem as the object will exist in two domains simultaneously. It will exist with all its data where it was created and it will exist in the domain of usage as a proxy object, ensuring that methods of an original object are called.
 
-Передавая сериализуемый объект между доменами, вы получите в другом домене полную копию объекта из первого сохранив некоторую разграниченность по памяти. Разграниченность тоже мнимая. Она - только для тех типов, которые не находятся в `Shared AppDomain`. Т.е., например, если в качестве исключения бросить что-нибудь несериализуемое, но из `Shared AppDomain`, то ошибки сериализации не будет (можно попробовать вместо `Program` бросить `Action`). Однако раскрутка стека при этом все равно произойдёт: оба случая должны работать стандартно. Чтобы никого не путать.
+By transferring a serialized object between domains you get a full copy of the object from one domain in another one while keeping some delimitation in memory. However, this delimitation is fictional. It is used only for those types that are not in `Shared AppDomain`. Thus, if you throw something non-serializable as an exception, but from `Shared AppDomain`, you won’t get an error of serialization (we can try throwing `Action` instead of `Program`). However, stack unrolling will anyway happen in this case: as both variants should work in a standard way. So that nobody will be confused.
 
